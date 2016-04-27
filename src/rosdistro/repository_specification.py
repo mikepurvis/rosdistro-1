@@ -31,8 +31,12 @@
 # ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
+import re
+
 
 class RepositorySpecification(object):
+    # Match groups are server and path on server.
+    VCS_REGEX = re.compile('(?:https?:\/\/|ssh:\/\/|git:\/\/|git@)([\w.-]+)[:/]([\w/-]*)(?:\.git)?$')
 
     def __init__(self, name, data):
         self.name = name
@@ -47,6 +51,14 @@ class RepositorySpecification(object):
 
     def get_data(self):
         return self._get_data()
+
+    def get_url_parts(self):
+        """ Returns a tuple for the server and path.
+            Example ('github.com', 'ros/catkin') """
+        match = self.VCS_REGEX.match(self.url)
+        if not match:
+            raise RuntimeError('VCS url "%s" does not match expected format.' % self.url)
+        return match.groups()
 
     def _get_data(self, skip_git_type=False):
         data = {}

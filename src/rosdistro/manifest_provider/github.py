@@ -45,7 +45,8 @@ from rosdistro.manifest_provider.git import check_remote_tag_exists
 
 def github_manifest_provider(_dist_name, repo, pkg_name):
     assert repo.version
-    if 'github.com' not in repo.url:
+    server, path = repo.get_url_parts()
+    if server != 'github.com':
         logger.debug('Skip non-github url "%s"' % repo.url)
         raise RuntimeError('can not handle non github urls')
 
@@ -54,14 +55,7 @@ def github_manifest_provider(_dist_name, repo, pkg_name):
     if not check_remote_tag_exists(repo.url, release_tag):
         raise RuntimeError('specified tag "%s" is not a git tag' % release_tag)
 
-    url = repo.url
-    if url.endswith('.git'):
-        url = url[:-4]
-    url += '/%s/package.xml' % release_tag
-    if url.startswith('git://'):
-        url = 'https://' + url[6:]
-    if url.startswith('https://'):
-        url = 'https://raw.' + url[8:]
+    url = 'https://raw.githubusercontent.com/%s/%s/package.xml' % (path, release_tag)
     try:
         logger.debug('Load package.xml file from url "%s"' % url)
         package_xml = urlopen(url).read()

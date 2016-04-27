@@ -56,19 +56,11 @@ from rosdistro.manifest_provider.git import check_remote_tag_exists
 BITBUCKET_USER = os.getenv('BITBUCKET_USER', None)
 BITBUCKET_PASSWORD = os.getenv('BITBUCKET_PASSWORD', None)
 
-# Three capture groups are server, org, repo_name. URLs are expected to be well-behaved
-# rosdistro-style URLs either in https or ssh format.
-GIT_REGEX = re.compile('(?:https?:\/\/|ssh:\/\/|git@)([\w.-]+)[:/]([\w-]+)\/([\w-]*)\.git$')
-
 
 def bitbucket_manifest_provider(_dist_name, repo, pkg_name):
     assert repo.version
+    server, path = repo.get_url_parts()
 
-    match = GIT_REGEX.match(repo.url)
-    if not match:
-        raise RuntimeError('Unexpected git URL format: %s' % repo.url)
-
-    server, org, repo_name = match.groups()
     if server != 'bitbucket.org':
         logger.debug('Skip non-bitbucket url "%s"' % repo.url)
         raise RuntimeError('Cannot handle non bitbucket url.')
@@ -78,7 +70,7 @@ def bitbucket_manifest_provider(_dist_name, repo, pkg_name):
     if not check_remote_tag_exists(repo.url, release_tag):
         raise RuntimeError('specified tag "%s" is not a git tag' % release_tag)
 
-    url = 'https://%s/%s/%s/raw/%s/package.xml' % (server, org, repo_name, release_tag)
+    url = 'https://bitbucket.org/%s/raw/%s/package.xml' % (path, release_tag)
     try:
         logger.debug('Load package.xml file from url "%s"' % url)
         req = Request(url)
