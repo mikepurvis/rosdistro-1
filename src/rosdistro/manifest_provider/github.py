@@ -38,6 +38,9 @@ except ImportError:
     from urllib2 import urlopen
     from urllib2 import URLError
 
+from catkin_pkg.package import InvalidPackage, parse_package_string
+import json
+import os
 from rosdistro import logger
 
 
@@ -61,3 +64,47 @@ def github_manifest_provider(_dist_name, repo, pkg_name):
     except URLError as e:
         logger.debug('- failed (%s), trying "%s"' % (e, url))
         raise RuntimeError()
+
+
+def github_source_manifest_provider(repo):
+    server, path = repo.get_url_parts()
+    if server != 'github.com':
+        logger.debug('Skip non-github url "%s"' % repo.url)
+        raise RuntimeError('can not handle non github urls')
+
+    tree_url = 'https://api.github.com/repos/%s/git/trees/%s?recursive=1' % (path, repo.version)
+    try:
+        tree_json = json.load(urlopen(tree_url))
+    except URLError as e:
+        raise RuntimeError('Unable to fetch JSON tree from github.')
+
+    if tree_json['truncated']:
+        raise RuntimeError('JSON tree is truncated, must perform full clone.')
+
+    package_xml_paths = set()
+    for obj in tree_json['tree']:
+        if obj['path'].split('/')[-1] == 'package.xml':
+            package_xml_paths.add(os.path.dirname(obj['path']))
+
+    # Filter out ones that are inside other packages (eg, part of tests)
+    def package_xml_in_parent(path):
+        if path == '':
+            return True
+        parent = path
+        while True:
+            parent = os.path.dirname(parent)
+            if parent in package_xml_paths:
+                return False
+            if parent == '':
+                return True
+    package_xml_paths = filter(package_xml_in_parent, package_xml_paths)
+
+    cache = { '_ref': tree_json['sha'] }
+    for package_xml_path in package_xml_paths:
+        url = 'https://raw.githubusercontent.com/%s/%s/%s/package.xml' % \
+            (path, cache['_ref'], package_xml_path)
+        package_xml = urlopen(url).read()
+        name = parse_package_string(package_xml).name
+        cache[name] = [ package_xml_path, package_xml ]
+
+    return cache

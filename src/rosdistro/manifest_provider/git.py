@@ -31,7 +31,11 @@
 # ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
+from catkin_pkg.package import InvalidPackage, parse_package_string
+from contextlib import contextmanager
+from distutils.version import LooseVersion
 import os
+import re
 import shutil
 import tempfile
 
@@ -46,45 +50,76 @@ def git_manifest_provider(_dist_name, repo, pkg_name):
     assert repo.version
     try:
         release_tag = repo.get_release_tag(pkg_name)
-        package_xml = _get_package_xml(repo.url, release_tag)
-        return package_xml
+        with _temp_git_clone(repo.url, release_tag) as git_repo_path:
+            filename = os.path.join(git_repo_path, 'package.xml')
+            if not os.path.exists(filename):
+                raise RuntimeError('Could not find package.xml in repository "%s"' % repo.url)
+            with open(filename, 'r') as f:
+                return f.read()
     except Exception as e:
         raise RuntimeError('Unable to fetch package.xml: %s' % e)
 
 
-def _get_package_xml(url, tag):
-    base = tempfile.mkdtemp('rosdistro')
+def git_source_manifest_provider(repo):
     try:
-        git = Git(base)
-        if git.version_gte('1.8.0'):
-            # Directly clone the required tag with least amount of additional history. This behaviour
-            # has been available since git 1.8.0:
+        with _temp_git_clone(repo.url, repo.version) as git_repo_path:
+            # Include the git hash in our cache dictionary.
+            cmd = [_git_client_executable, 'rev-parse', 'HEAD']
+            result = _run_command(cmd, cwd=git_repo_path)
+            cache = { '_ref': result['output'] }
+
+            for path, dirnames, filenames in os.walk(git_repo_path):
+                # Don't recurse into hidden folders.
+                if os.path.basename(path)[0] == '.':
+                    dirnames[:] = []
+                    continue
+
+                if 'package.xml' in filenames:
+                    filename = os.path.join(path, 'package.xml')
+                    with open(filename, 'r') as f:
+                        package_xml = f.read()
+
+                    try:
+                        name = parse_package_string(package_xml).name
+                    except InvalidPackage:
+                        raise RuntimeError('Unable to parse package.xml file found in %s' % repo.url)
+                    cache[name] = [ path[len(git_repo_path)+1:], package_xml ]
+
+                    # Prevent further recursion down this tree.
+                    dirnames[:] = []
+
+    except Exception as e:
+        raise RuntimeError('Unable to fetch source package.xml files: %s' % e)
+
+    return cache
+
+
+@contextmanager
+def _temp_git_clone(url, ref):
+    base = tempfile.mkdtemp('rosdistro')
+    git = Git(base)
+    try:
+        if git.version_gte('1.8.0') and not _ref_is_hash(ref):
+            # Directly clone the required ref with least amount of additional history. This behaviour
+            # has been available since git 1.8.0, but only works for tags and branches, not hashes:
             # https://git.kernel.org/cgit/git/git.git/tree/Documentation/git-clone.txt?h=v1.8.0#n158
-            result = git.command('clone', url, base, '--depth', '2', '--branch', tag)
+            result = git.command('clone', url, '.', '--depth', '1', '--branch', ref)
             if result['returncode'] != 0:
-                raise RuntimeError('Could not clone repository "%s" at tag "%s"' % (url, tag))
+                raise RuntimeError('Could not clone repository "%s" at reference "%s"' % (url, ref))
         else:
-            # Old git doesn't support cloning a tag directly, so check it out after a full clone.
-            git = Git(base)
-            result = git.command('clone', url, base)
+            # Old git doesn't support cloning a tag/branch directly, so check it out after a full clone.
+            result = git.command('clone', url, '.')
             if result['returncode'] != 0:
                 raise RuntimeError('Could not clone repository "%s"' % url)
 
-            result = git.command('tag', '-l')
+            result = git.command('checkout', ref)
             if result['returncode'] != 0:
-                raise RuntimeError('Could not get tags of repository "%s"' % url)
+                raise RuntimeError('Could not checkout ref "%s" of repository "%s"' % (ref, url))
 
-            if tag not in result['output'].splitlines():
-                raise RuntimeError('Specified tag "%s" is not a git tag of repository "%s"' % (tag, url))
-
-            result = git.command('checkout', tag)
-            if result['returncode'] != 0:
-                raise RuntimeError('Could not checkout tag "%s" of repository "%s"' % (tag, url))
-
-        filename = os.path.join(base, 'package.xml')
-        if not os.path.exists(filename):
-            raise RuntimeError('Could not find package.xml in repository "%s"' % url)
-        with open(filename, 'r') as f:
-            return f.read()
+        yield base
     finally:
         shutil.rmtree(base)
+
+
+def _ref_is_hash(ref):
+    return re.match('^[0-9a-f]{40}$', ref) != None

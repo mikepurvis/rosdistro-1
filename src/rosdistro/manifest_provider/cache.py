@@ -86,3 +86,33 @@ class CachedManifestProvider(object):
             # populate the cache
             self._distribution_cache.release_package_xmls[pkg_name] = package_xml
         return package_xml
+
+
+class CachedSourceManifestProvider(object):
+
+    def __init__(self, distribution_cache, source_manifest_providers=None):
+        self._distribution_cache = distribution_cache
+        self._source_manifest_providers = source_manifest_providers
+
+    def __call__(self, repo):
+        assert repo.url and repo.version
+        repo_cache = self._distribution_cache.source_repo_package_xmls.get(repo.name, None)
+        if not repo_cache:
+            # Use manifest providers to lazy load
+            for mp in self._source_manifest_providers or []:
+                repo_cache = mp(repo)
+                if repo_cache is not None:
+                    self._distribution_cache.source_repo_package_xmls[repo.name] = repo_cache
+                    # De-duplicate with the release package XMLs. This will cause the YAML writer
+                    # to use references, saving space in the cache file.
+                    for key in repo_cache:
+                        if key[0] != '_':
+                            repo_cache[key][1] = _squash_xml(repo_cache[key][1])
+                            if key in self._distribution_cache.release_package_xmls:
+                                release_package_xml = self._distribution_cache.release_package_xmls[key]
+                                if repo_cache[key][1] == release_package_xml:
+                                    repo_cache[key][1] = release_package_xml
+                    break
+        else:
+            logger.debug('Load package XMLs for repo "%s" from cache' % repo.name)
+        return repo_cache

@@ -27,9 +27,9 @@ def test_git():
 
 
 def test_git_legacy():
-    rosdistro.vcs._git_client_version = '1.7.0'
+    rosdistro.vcs.Git._client_version = '1.7.0'
     assert '</package>' in git_manifest_provider('kinetic', _genmsg_repo(), 'genmsg')
-    rosdistro.vcs._git_client_version = None
+    rosdistro.vcs.Git._client_version = None
 
 
 def test_github():
