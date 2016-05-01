@@ -32,6 +32,7 @@
 # POSSIBILITY OF SUCH DAMAGE.
 
 import re
+from .vcs import git_command
 
 
 class RepositorySpecification(object):
@@ -44,6 +45,7 @@ class RepositorySpecification(object):
         assert 'url' in data and data['url'], "Repository '%s' lacks required URL information" % name
         self.url = data['url']
         self.version = data.get('version', None)
+        self._remote_refs = None
 
         # for backward compatibility only
         self.status = None
@@ -59,6 +61,26 @@ class RepositorySpecification(object):
         if not match:
             raise RuntimeError('VCS url "%s" does not match expected format.' % self.url)
         return match.groups()
+
+    @property
+    def remote_refs(self):
+        if not self._remote_refs:
+            result = git_command(None, ['ls-remote', self.url])
+            if result['returncode'] != 0:
+                raise RuntimeError('Could not git ls-remote repository "%s"' % self.url)
+            self._remote_refs = {}
+            for row in result['output'].strip().splitlines():
+                sha, name = row.split('\t')
+                self._remote_refs[name] = sha
+        return self._remote_refs
+
+    @property
+    def remote_tags(self):
+        result = {}
+        for name, sha in self.remote_refs.iteritems():
+            if name.startswith('refs/tags/'):
+                result[name.split('refs/tags/')[1]] = sha
+        return result
 
     def _get_data(self, skip_git_type=False):
         data = {}

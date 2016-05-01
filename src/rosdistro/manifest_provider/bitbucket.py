@@ -43,8 +43,6 @@ import os
 import re
 
 from rosdistro import logger
-from rosdistro.manifest_provider import get_release_tag
-from rosdistro.manifest_provider.git import check_remote_tag_exists
 
 # This Bitbucket provider can optionally send basic auth to fetch from
 # private repositories if you supply the environment variables
@@ -65,9 +63,9 @@ def bitbucket_manifest_provider(_dist_name, repo, pkg_name):
         logger.debug('Skip non-bitbucket url "%s"' % repo.url)
         raise RuntimeError('Cannot handle non bitbucket url.')
 
-    release_tag = get_release_tag(repo, pkg_name)
+    release_tag = repo.get_release_tag(pkg_name)
 
-    if not check_remote_tag_exists(repo.url, release_tag):
+    if release_tag not in repo.remote_tags:
         raise RuntimeError('specified tag "%s" is not a git tag' % release_tag)
 
     url = 'https://bitbucket.org/%s/raw/%s/package.xml' % (path, release_tag)
