@@ -46,7 +46,7 @@ def _genmsg_repo():
 
 def _rospeex_repo():
     return ReleaseRepositorySpecification('rospeex', {
-        'packages': { 'rospeex', 'rospeex_msgs' },
+        'packages': [ 'rospeex', 'rospeex_msgs' ],
         'tags': { 'release': 'release/indigo/{package}/{version}' },
         'url': 'https://bitbucket.org/rospeex/rospeex-release.git',
         'version': '2.14.7-0'

@@ -77,7 +77,7 @@ class RepositorySpecification(object):
     @property
     def remote_tags(self):
         result = {}
-        for name, sha in self.remote_refs.iteritems():
+        for name, sha in self.remote_refs.items():
             if name.startswith('refs/tags/'):
                 result[name.split('refs/tags/')[1]] = sha
         return result
