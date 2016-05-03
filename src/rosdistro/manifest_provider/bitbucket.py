@@ -76,7 +76,7 @@ def bitbucket_manifest_provider(_dist_name, repo, pkg_name):
             logger.debug('- using http basic auth from supplied environment variables.')
             authheader = 'Basic %s' % base64.encodestring('%s:%s' % (BITBUCKET_USER, BITBUCKET_PASSWORD))
             req.add_header('Authorization', authheader)
-        package_xml = urlopen(req).read()
+        package_xml = urlopen(req).read().decode('utf-8')
         return package_xml
     except URLError as e:
         logger.debug('- failed (%s)' % e)

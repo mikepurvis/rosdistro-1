@@ -56,7 +56,7 @@ def github_manifest_provider(_dist_name, repo, pkg_name):
     url = 'https://raw.githubusercontent.com/%s/%s/package.xml' % (path, release_tag)
     try:
         logger.debug('Load package.xml file from url "%s"' % url)
-        package_xml = urlopen(url).read()
+        package_xml = urlopen(url).read().decode('utf-8')
         return package_xml
     except URLError as e:
         logger.debug('- failed (%s), trying "%s"' % (e, url))
