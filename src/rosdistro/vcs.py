@@ -36,17 +36,25 @@ import os
 import subprocess
 
 
-def git_command(cwd, cmd):
-    assert _git_client_executable is not None, "'git' not found"
-    return _run_command([_git_client_executable] + cmd, cwd)
+class Git(object):
+    _client_executable = None
+    _client_version = None
 
+    def __init__(self, cwd=None):
+        self.cwd = cwd
+        if not self._client_executable:
+            self.__class__._client_executable = _find_executable('git')
 
-def git_version_gte(version):
-    global _git_client_version
-    if not _git_client_version:
-        result = git_command(None, ['--version'])
-        _git_client_version = result['output'].split()[-1]
-    return LooseVersion(_git_client_version) >= LooseVersion(version)
+    def command(self, *args):
+        assert self._client_executable is not None, "'git' not found"
+        return _run_command((self._client_executable,) + args, self.cwd)
+
+    @classmethod
+    def version_gte(cls, version):
+        if not cls._client_version:
+            result = cls().command('--version')
+            cls._client_version = result['output'].split()[-1]
+        return LooseVersion(cls._client_version) >= LooseVersion(version)
 
 
 def _run_command(cmd, cwd=None, env=None):
@@ -70,7 +78,3 @@ def _find_executable(file_name):
         if os.path.isfile(file_path) and os.access(file_path, os.X_OK):
             return file_path
     return None
-
-
-_git_client_executable = _find_executable('git')
-_git_client_version = None

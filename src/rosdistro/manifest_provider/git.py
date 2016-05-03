@@ -36,7 +36,7 @@ import shutil
 import tempfile
 
 from rosdistro import logger
-from rosdistro.vcs import git_command, git_version_gte
+from rosdistro.vcs import Git
 
 
 workspace_base = '/tmp/rosdistro-workspace'
@@ -55,27 +55,29 @@ def git_manifest_provider(_dist_name, repo, pkg_name):
 def _get_package_xml(url, tag):
     base = tempfile.mkdtemp('rosdistro')
     try:
-        if git_version_gte('1.8.0'):
+        git = Git(base)
+        if git.version_gte('1.8.0'):
             # Directly clone the required tag with least amount of additional history. This behaviour
             # has been available since git 1.8.0:
             # https://git.kernel.org/cgit/git/git.git/tree/Documentation/git-clone.txt?h=v1.8.0#n158
-            result = git_command(None, ['clone', url, base, '--depth', '2', '--branch', tag])
+            result = git.command('clone', url, base, '--depth', '2', '--branch', tag)
             if result['returncode'] != 0:
                 raise RuntimeError('Could not clone repository "%s" at tag "%s"' % (url, tag))
         else:
             # Old git doesn't support cloning a tag directly, so check it out after a full clone.
-            result = git_command(base, ['clone', url, base])
+            git = Git(base)
+            result = git.command('clone', url, base)
             if result['returncode'] != 0:
                 raise RuntimeError('Could not clone repository "%s"' % url)
 
-            result = git_command(base, ['tag', '-l'])
+            result = git.command('tag', '-l')
             if result['returncode'] != 0:
                 raise RuntimeError('Could not get tags of repository "%s"' % url)
 
             if tag not in result['output'].splitlines():
                 raise RuntimeError('Specified tag "%s" is not a git tag of repository "%s"' % (tag, url))
 
-            result = git_command(base, ['checkout', tag])
+            result = git.command('checkout', tag)
             if result['returncode'] != 0:
                 raise RuntimeError('Could not checkout tag "%s" of repository "%s"' % (tag, url))
 

@@ -32,7 +32,7 @@
 # POSSIBILITY OF SUCH DAMAGE.
 
 import re
-from .vcs import git_command
+from .vcs import Git
 
 
 class RepositorySpecification(object):
@@ -65,7 +65,7 @@ class RepositorySpecification(object):
     @property
     def remote_refs(self):
         if not self._remote_refs:
-            result = git_command(None, ['ls-remote', self.url])
+            result = Git().command('ls-remote', self.url)
             if result['returncode'] != 0:
                 raise RuntimeError('Could not git ls-remote repository "%s"' % self.url)
             self._remote_refs = {}
