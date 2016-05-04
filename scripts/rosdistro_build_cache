@@ -42,7 +42,7 @@ import sys
 import yaml
 
 from rosdistro import logger
-from rosdistro.distribution_cache_generator import generate_distribution_caches
+from rosdistro.distribution_cache_generator import CacheYamlDumper, generate_distribution_caches
 
 logging.basicConfig(level=logging.INFO)
 
@@ -85,14 +85,15 @@ def main():
     for dist_name, cache in caches.items():
         if args.dist_names and dist_name not in args.dist_names:
             continue
-        # write the cache
-        data = yaml.dump(cache.get_data())
+
+        data = yaml.dump(cache.get_data(), Dumper=CacheYamlDumper)
+
         with open('%s-cache.yaml' % dist_name, 'w') as f:
             print('- write cache file "%s-cache.yaml"' % dist_name)
             f.write(data)
         with gzip.open('%s-cache.yaml.gz' % dist_name, 'wb') as f:
             print('- write compressed cache file "%s-cache.yaml.gz"' % dist_name)
-            f.write(data.encode('utf-8'))
+            f.write(data)
 
 
 if __name__ == '__main__':
