@@ -52,9 +52,11 @@ def squash_xml(xml_string):
         for x in drop_nodes:
             node.removeChild(x)
         return node
-    if not isinstance(xml_string, unicode):
-        xml_string = unicode(xml_string, 'utf-8')
-    return _squash(minidom.parseString(xml_string.encode('utf-8'))).toxml('utf-8')
+    if isinstance(xml_string, bytes):
+        xml_string_bytes = xml_string
+    else:
+        xml_string_bytes = xml_string.encode('utf-8')
+    return _squash(minidom.parseString(xml_string_bytes)).toxml('utf-8').decode('utf-8')
 
 
 class CachedManifestProvider(object):
@@ -67,11 +69,8 @@ class CachedManifestProvider(object):
         assert repo.version
         package_xml = self._distribution_cache.release_package_xmls.get(pkg_name, None)
         if package_xml:
+            package_xml = squash_xml(package_xml)
             logger.debug('Loading package.xml for package "%s" from cache' % pkg_name)
-            if "\n" in package_xml:
-                logger.debug('Squashing unsquashed package.xml from cache.')
-                package_xml = squash_xml(package_xml)
-                self._distribution_cache.release_package_xmls[pkg_name] = package_xml
         else:
             # use manifest providers to lazy load
             for mp in self._manifest_providers or []:
