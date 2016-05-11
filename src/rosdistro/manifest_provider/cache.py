@@ -35,10 +35,10 @@ from rosdistro import logger
 from xml.dom import minidom
 
 
-def squash_xml(xml_string):
+def sanitize_xml(xml_string):
     """ Returns a version of the supplied XML string with comments and all whitespace stripped,
-        including runs of spaces internal to text nodes. The returned string will be unicode; if
-        the supplied value is a str, it will be interpreted as utf-8. """
+        including runs of spaces internal to text nodes. The returned string will be encoded,
+        so str (Python 2) or bytes (Python 3). """
     def _squash(node):
         drop_nodes = []
         for x in node.childNodes:
@@ -52,11 +52,15 @@ def squash_xml(xml_string):
         for x in drop_nodes:
             node.removeChild(x)
         return node
-    if isinstance(xml_string, bytes):
-        xml_string_bytes = xml_string
-    else:
-        xml_string_bytes = xml_string.encode('utf-8')
-    return _squash(minidom.parseString(xml_string_bytes)).toxml('utf-8').decode('utf-8')
+    try:
+        # Python 2. The minidom module parses as ascii, so we have to pre-encode.
+        if isinstance(xml_string, unicode):
+            xml_string = xml_string.encode('utf-8')
+        # Returns an encoded str.
+        return _squash(minidom.parseString(xml_string)).toxml('utf-8')
+    except NameError:
+        # Python 3 returns a unicode str.
+        return _squash(minidom.parseString(xml_string)).toxml()
 
 
 class CachedManifestProvider(object):
@@ -69,13 +73,14 @@ class CachedManifestProvider(object):
         assert repo.version
         package_xml = self._distribution_cache.release_package_xmls.get(pkg_name, None)
         if package_xml:
-            package_xml = squash_xml(package_xml)
+            package_xml = sanitize_xml(package_xml)
+            self._distribution_cache.release_package_xmls[pkg_name] = package_xml
             logger.debug('Loading package.xml for package "%s" from cache' % pkg_name)
         else:
             # use manifest providers to lazy load
             for mp in self._manifest_providers or []:
                 try:
-                    package_xml = squash_xml(mp(dist_name, repo, pkg_name))
+                    package_xml = sanitize_xml(mp(dist_name, repo, pkg_name))
                     break
                 except Exception as e:
                     # pass and try next manifest provider
@@ -99,19 +104,24 @@ class CachedSourceManifestProvider(object):
         if not repo_cache:
             # Use manifest providers to lazy load
             for mp in self._source_manifest_providers or []:
-                repo_cache = mp(repo)
-                if repo_cache is not None:
-                    self._distribution_cache.source_repo_package_xmls[repo.name] = repo_cache
-                    # De-duplicate with the release package XMLs. This will cause the YAML writer
-                    # to use references, saving space in the cache file.
-                    for key in repo_cache:
-                        if key[0] != '_':
-                            repo_cache[key][1] = _squash_xml(repo_cache[key][1])
-                            if key in self._distribution_cache.release_package_xmls:
-                                release_package_xml = self._distribution_cache.release_package_xmls[key]
-                                if repo_cache[key][1] == release_package_xml:
-                                    repo_cache[key][1] = release_package_xml
-                    break
+                try:
+                    repo_cache = mp(repo)
+                except Exception as e:
+                    # pass and try next manifest provider
+                    logger.debug('Skipped "%s()": %s' % (mp.__name__, e))
+                    continue
+
+                self._distribution_cache.source_repo_package_xmls[repo.name] = repo_cache
+                # De-duplicate with the release package XMLs. This will cause the YAML writer
+                # to use references, saving a lot of space in the cache file.
+                for key in repo_cache:
+                    if key[0] != '_':
+                        repo_cache[key][1] = sanitize_xml(repo_cache[key][1])
+                        if key in self._distribution_cache.release_package_xmls:
+                            release_package_xml = self._distribution_cache.release_package_xmls[key]
+                            if repo_cache[key][1] == release_package_xml:
+                                repo_cache[key][1] = release_package_xml
+                break
         else:
             logger.debug('Load package XMLs for repo "%s" from cache' % repo.name)
         return repo_cache

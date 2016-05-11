@@ -145,14 +145,19 @@ class CacheYamlDumper(yaml.SafeDumper):
 
     def ignore_aliases(self, content):
         """ Allow strings that look like package XML to alias to each other in the YAML output. """
-	return not ((isinstance(content, str) or isinstance(content, unicode)) and '<package' in content)
+        try:
+            basestring 
+        except NameError:
+            # Python 3
+            basestring = str
+        return not (isinstance(content, basestring) and '<package' in content)
 
     def represent_mapping(self, tag, mapping, flow_style=False):
         """ Gives compact representation for the distribution_file section, while allowing the package
             XML cache sections room to breathe."""
-	if any([ x in mapping for x in ('source', 'release', 'doc')]):
-	    flow_style = True
-	return yaml.SafeDumper.represent_mapping(self, tag, mapping, flow_style)
+        if any([ x in mapping for x in ('source', 'release', 'doc')]):
+            flow_style = True
+        return yaml.SafeDumper.represent_mapping(self, tag, mapping, flow_style)
 
 
 def _get_cached_distribution(index, dist_name, preclean=False, ignore_local=False):
