@@ -80,7 +80,7 @@ class Distribution(object):
 
     def get_source_repo_package_xmls(self, repo):
         """ Expects a SourceRepositorySpecification object. """
-        if repo.name not in self._source_repo_package_xmls:
+        if not self._source_repo_package_xmls.get(repo.name, None):
             for mp in self._source_manifest_providers:
                 result = mp(repo)
                 if result is not None:
