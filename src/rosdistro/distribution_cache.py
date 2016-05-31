@@ -34,6 +34,9 @@
 from __future__ import print_function
 
 from .distribution_file import create_distribution_file
+from .package import Package
+from .vcs import Git, ref_is_hash
+import sys
 
 
 class DistributionCache(object):
@@ -60,6 +63,8 @@ class DistributionCache(object):
         self.distribution_file = create_distribution_file(name, self._distribution_file_data)
         self.release_package_xmls = data['release_package_xmls'] if data else {}
         self.source_repo_package_xmls = data['source_repo_package_xmls'] if data and 'source_repo_package_xmls' in data else {}
+
+        self.distribution_file.source_packages = self.get_source_packages()
 
         # if Python 2 has converted the xml to unicode, convert it back
         for k, v in self.release_package_xmls.items():
@@ -98,16 +103,57 @@ class DistributionCache(object):
         self._distribution_file_data = distribution_file_data
         dist_file = create_distribution_file(self.distribution_file.name, self._distribution_file_data)
 
-        # remove all package xmls if repository information has changed
+        # remove all release package xmls where the package version has changed.
         for pkg_name in sorted(dist_file.release_packages.keys()):
             if pkg_name not in self.distribution_file.release_packages:
                 continue
             if pkg_name in self.release_package_xmls and self._get_repo_info(dist_file, pkg_name) != self._get_repo_info(self.distribution_file, pkg_name):
                 del self.release_package_xmls[pkg_name]
 
+        # Remove all source package xmls where the devel branch is pointing to a different commit than
+        # the one we have associated with our cache. This requires calling git ls-remote on all affected repos.
+        if self.source_repo_package_xmls:
+            print("- removing out-of-date source repo cache entries.")
+            for repo in sorted(self.source_repo_package_xmls.keys()):
+                sys.stdout.write('.')
+                sys.stdout.flush()
+                try:
+                    source_repository = dist_file.repositories[repo].source_repository
+                except KeyError, AttributeError:
+                    # The repo entry has been dropped, or the source stanza from it has been dropped,
+                    # either way, remove the cache entries associated with this repository.
+                    del self.source_repo_package_xmls[repo]
+                    continue
+
+                if ref_is_hash(source_repository.version):
+                    source_hash = source_repository.version
+                else:
+                    result = Git().command('ls-remote', source_repository.url, source_repository.version)
+                    if result['returncode'] != 0 or not result['output']:
+                        # Error checking remote, or unable to find remote reference. Drop the cache entry.
+                        del self.source_repo_package_xmls[repo]
+                        continue
+                    source_hash = result['output'].split('\t')[0]
+
+                if source_hash != self.source_repo_package_xmls[repo]['_ref']:
+                    # Upstream repo is different than the cache.
+                    del self.source_repo_package_xmls[repo]
+            sys.stdout.write('\n')
+
         self.distribution_file = dist_file
+        self.distribution_file.source_packages = self.get_source_packages()
+
         # remove packages which are not in the new distribution file
         self._remove_obsolete_entries()
+
+    def get_source_packages(self):
+        """ Returns dictionary mapping source package names to Package() objects. """
+        package_dict = {}
+        for source_repo_name, source_repo in self.source_repo_package_xmls.items():
+            for pkg_name in source_repo:
+                if pkg_name[0] != '_':
+                    package_dict[pkg_name] = Package(pkg_name, source_repo_name)
+        return package_dict
 
     def _get_repo_info(self, dist_file, pkg_name):
         pkg = dist_file.release_packages[pkg_name]

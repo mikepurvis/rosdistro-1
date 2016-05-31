@@ -3,4 +3,5 @@ build
 deb_dist
 dist
 *.pyc
+*.swp
 rosdistro.egg-info

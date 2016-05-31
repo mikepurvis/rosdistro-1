@@ -41,12 +41,13 @@ class Distribution(object):
     default_manifest_providers = [github_manifest_provider, bitbucket_manifest_provider, git_manifest_provider]
     default_source_manifest_providers = [github_source_manifest_provider, git_source_manifest_provider]
 
-    def __init__(self, distribution_file, manifest_providers=None, source_manifest_providers=None):
+    def __init__(self, distribution_file, manifest_providers=None, source_manifest_providers=None, source_packages={}):
         self._distribution_file = distribution_file
 
         # Use default
         self._manifest_providers = Distribution.default_manifest_providers
         self._source_manifest_providers = Distribution.default_source_manifest_providers
+        self._source_packages = source_packages
 
         # Override default if given
         if manifest_providers is not None:
@@ -78,12 +79,16 @@ class Distribution(object):
             self._release_package_xmls[pkg_name] = package_xml
         return self._release_package_xmls[pkg_name]
 
-    def get_source_repo_package_xmls(self, repo):
-        """ Expects a SourceRepositorySpecification object. """
-        if not self._source_repo_package_xmls.get(repo.name, None):
+    def get_source_package_xml(self, pkg_name):
+        repo_name = self._distribution_file.source_packages[pkg_name].repository_name
+        repo_cache = self.get_source_repo_package_xmls(repo_name)
+        return repo_cache[pkg_name][1]
+
+    def get_source_repo_package_xmls(self, repository_name):
+        if not self._source_repo_package_xmls.get(repository_name, None):
             for mp in self._source_manifest_providers:
-                result = mp(repo)
+                result = mp(self.repositories[repository_name].source_repository)
                 if result is not None:
                     break
-            self._source_repo_package_xmls[repo.name] = result
-        return self._source_repo_package_xmls[repo.name]
+            self._source_repo_package_xmls[repository_name] = result
+        return self._source_repo_package_xmls[repository_name]
