@@ -112,16 +112,18 @@ class CachedSourceManifestProvider(object):
                     continue
 
                 self._distribution_cache.source_repo_package_xmls[repo.name] = repo_cache
-                # De-duplicate with the release package XMLs. This will cause the YAML writer
-                # to use references, saving a lot of space in the cache file.
-                for key in repo_cache:
-                    if key[0] != '_':
-                        repo_cache[key][1] = sanitize_xml(repo_cache[key][1])
-                        if key in self._distribution_cache.release_package_xmls:
-                            release_package_xml = self._distribution_cache.release_package_xmls[key]
-                            if repo_cache[key][1] == release_package_xml:
-                                repo_cache[key][1] = release_package_xml
                 break
         else:
             logger.debug('Load package XMLs for repo "%s" from cache' % repo.name)
+
+        # De-duplicate with the release package XMLs. This will cause the YAML writer
+        # to use references, saving a lot of space in the cache file.
+        for key in repo_cache or {}:
+            if key[0] != '_':
+                repo_cache[key][1] = sanitize_xml(repo_cache[key][1])
+                if key in self._distribution_cache.release_package_xmls:
+                    release_package_xml = self._distribution_cache.release_package_xmls[key]
+                    if repo_cache[key][1] == release_package_xml:
+                        repo_cache[key][1] = release_package_xml
+
         return repo_cache

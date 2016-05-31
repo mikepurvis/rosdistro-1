@@ -43,9 +43,6 @@ from rosdistro import logger
 from rosdistro.vcs import Git, ref_is_hash
 
 
-workspace_base = '/tmp/rosdistro-workspace'
-
-
 def git_manifest_provider(_dist_name, repo, pkg_name):
     assert repo.version
     try:

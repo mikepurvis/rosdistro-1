@@ -104,6 +104,7 @@ class DistributionCache(object):
         dist_file = create_distribution_file(self.distribution_file.name, self._distribution_file_data)
 
         # remove all release package xmls where the package version has changed.
+        print("- removing invalid release package cache entries.")
         for pkg_name in sorted(dist_file.release_packages.keys()):
             if pkg_name not in self.distribution_file.release_packages:
                 continue
@@ -113,7 +114,7 @@ class DistributionCache(object):
         # Remove all source package xmls where the devel branch is pointing to a different commit than
         # the one we have associated with our cache. This requires calling git ls-remote on all affected repos.
         if self.source_repo_package_xmls:
-            print("- removing out-of-date source repo cache entries.")
+            print("- removing invalid source repo cache entries.")
             for repo in sorted(self.source_repo_package_xmls.keys()):
                 sys.stdout.write('.')
                 sys.stdout.flush()
