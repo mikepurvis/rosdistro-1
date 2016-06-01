@@ -32,16 +32,20 @@
 # POSSIBILITY OF SUCH DAMAGE.
 
 try:
-    from urllib.request import urlopen
+    from urllib.request import urlopen, Request
     from urllib.error import URLError
 except ImportError:
-    from urllib2 import urlopen
+    from urllib2 import urlopen, Request
     from urllib2 import URLError
 
+import base64
 from catkin_pkg.package import InvalidPackage, parse_package_string
 import json
 import os
 from rosdistro import logger
+
+GITHUB_USER = os.getenv('GITHUB_USER', None)
+GITHUB_PASSWORD = os.getenv('GITHUB_PASSWORD', None)
 
 
 def github_manifest_provider(_dist_name, repo, pkg_name):
@@ -73,10 +77,16 @@ def github_source_manifest_provider(repo):
         raise RuntimeError('can not handle non github urls')
 
     tree_url = 'https://api.github.com/repos/%s/git/trees/%s?recursive=1' % (path, repo.version)
+    req = Request(tree_url)
+    if GITHUB_USER and GITHUB_PASSWORD:
+        logger.debug('- using http basic auth from supplied environment variables.')
+        authheader = 'Basic %s' % base64.b64encode('%s:%s' % (GITHUB_USER, GITHUB_PASSWORD))
+        req.add_header('Authorization', authheader)
     try:
-        tree_json = json.load(urlopen(tree_url))
+        tree_json = json.load(urlopen(req))
+        logger.debug('- load repo tree from %s' % tree_url)
     except URLError as e:
-        raise RuntimeError('Unable to fetch JSON tree from github.')
+        raise RuntimeError('Unable to fetch JSON tree from %s: %s' % (tree_url, e))
 
     if tree_json['truncated']:
         raise RuntimeError('JSON tree is truncated, must perform full clone.')
@@ -103,6 +113,7 @@ def github_source_manifest_provider(repo):
     for package_xml_path in package_xml_paths:
         url = 'https://raw.githubusercontent.com/%s/%s/%s/package.xml' % \
             (path, cache['_ref'], package_xml_path)
+        logger.debug('- load package.xml from %s' % url)
         package_xml = urlopen(url).read()
         name = parse_package_string(package_xml).name
         cache[name] = [ package_xml_path, package_xml ]
