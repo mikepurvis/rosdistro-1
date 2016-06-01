@@ -138,7 +138,9 @@ class DistributionCache(object):
                         logger.debug("Unable to check hash for branch %s of %s, dropping cache entry." % (source_repository.version, source_repository.url))
                         del self.source_repo_package_xmls[repo]
                         continue
-                    source_hash = result['output'].split('\t')[0]
+                    # Split by line first and take the last line, to squelch any preamble output, for example
+                    # a known host key validation notice.
+                    source_hash = result['output'].split('\n')[-1].split('\t')[0]
 
                 cached_hash = self.source_repo_package_xmls[repo]['_ref']
                 if source_hash != cached_hash:
