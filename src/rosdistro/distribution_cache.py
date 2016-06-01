@@ -33,6 +33,7 @@
 
 from __future__ import print_function
 
+from . import logger
 from .distribution_file import create_distribution_file
 from .package import Package
 from .vcs import Git, ref_is_hash
@@ -109,12 +110,13 @@ class DistributionCache(object):
             if pkg_name not in self.distribution_file.release_packages:
                 continue
             if pkg_name in self.release_package_xmls and self._get_repo_info(dist_file, pkg_name) != self._get_repo_info(self.distribution_file, pkg_name):
+                logger.debug("Dropping release package XML cache for %s" % pkg_name)
                 del self.release_package_xmls[pkg_name]
 
         # Remove all source package xmls where the devel branch is pointing to a different commit than
         # the one we have associated with our cache. This requires calling git ls-remote on all affected repos.
         if self.source_repo_package_xmls:
-            print("- removing invalid source repo cache entries.")
+            print("- checking invalid source repo cache entries.")
             for repo in sorted(self.source_repo_package_xmls.keys()):
                 sys.stdout.write('.')
                 sys.stdout.flush()
@@ -123,6 +125,7 @@ class DistributionCache(object):
                 except KeyError, AttributeError:
                     # The repo entry has been dropped, or the source stanza from it has been dropped,
                     # either way, remove the cache entries associated with this repository.
+                    logger.debug('Unable to find source repository info for repo "%s".' % repo)
                     del self.source_repo_package_xmls[repo]
                     continue
 
@@ -132,12 +135,14 @@ class DistributionCache(object):
                     result = Git().command('ls-remote', source_repository.url, source_repository.version)
                     if result['returncode'] != 0 or not result['output']:
                         # Error checking remote, or unable to find remote reference. Drop the cache entry.
+                        logger.debug("Unable to check hash for branch %s of %s, dropping cache entry." % (source_repository.version, source_repository.url))
                         del self.source_repo_package_xmls[repo]
                         continue
                     source_hash = result['output'].split('\t')[0]
 
-                if source_hash != self.source_repo_package_xmls[repo]['_ref']:
-                    # Upstream repo is different than the cache.
+                cached_hash = self.source_repo_package_xmls[repo]['_ref']
+                if source_hash != cached_hash:
+                    logger.debug('Repo "%s" has moved from %s to %s, dropping cache.' % (repo, cached_hash, source_hash))
                     del self.source_repo_package_xmls[repo]
             sys.stdout.write('\n')
 

@@ -66,7 +66,7 @@ def github_manifest_provider(_dist_name, repo, pkg_name):
         package_xml = urlopen(url).read().decode('utf-8')
         return package_xml
     except URLError as e:
-        logger.debug('- failed (%s), trying "%s"' % (e, url))
+        logger.debug('Failed (%s), trying "%s"' % (e, url))
         raise RuntimeError()
 
 
@@ -79,12 +79,12 @@ def github_source_manifest_provider(repo):
     tree_url = 'https://api.github.com/repos/%s/git/trees/%s?recursive=1' % (path, repo.version)
     req = Request(tree_url)
     if GITHUB_USER and GITHUB_PASSWORD:
-        logger.debug('- using http basic auth from supplied environment variables.')
+        logger.debug('Using http basic auth from supplied environment variables.')
         authheader = 'Basic %s' % base64.b64encode('%s:%s' % (GITHUB_USER, GITHUB_PASSWORD))
         req.add_header('Authorization', authheader)
     try:
+        logger.debug('Load repo tree from %s' % tree_url)
         tree_json = json.load(urlopen(req))
-        logger.debug('- load repo tree from %s' % tree_url)
     except URLError as e:
         raise RuntimeError('Unable to fetch JSON tree from %s: %s' % (tree_url, e))
 
@@ -113,7 +113,7 @@ def github_source_manifest_provider(repo):
     for package_xml_path in package_xml_paths:
         url = 'https://raw.githubusercontent.com/%s/%s/%s/package.xml' % \
             (path, cache['_ref'], package_xml_path)
-        logger.debug('- load package.xml from %s' % url)
+        logger.debug('Load package.xml from %s' % url)
         package_xml = urlopen(url).read()
         name = parse_package_string(package_xml).name
         cache[name] = [ package_xml_path, package_xml ]
