@@ -61,8 +61,7 @@ def git_source_manifest_provider(repo):
     try:
         with _temp_git_clone(repo.url, repo.version) as git_repo_path:
             # Include the git hash in our cache dictionary.
-            cmd = [_git_client_executable, 'rev-parse', 'HEAD']
-            result = _run_command(cmd, cwd=git_repo_path)
+            result = Git(git_repo_path).command('rev-parse', 'HEAD')
             cache = { '_ref': result['output'] }
 
             for path, dirnames, filenames in os.walk(git_repo_path):
