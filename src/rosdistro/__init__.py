@@ -158,7 +158,7 @@ def get_cached_distribution(index, dist_name, cache=None, allow_lazy_load=False)
     dist = Distribution(
         cache.distribution_file,
         [CachedManifestProvider(cache, Distribution.default_manifest_providers if allow_lazy_load else None)],
-        [CachedSourceManifestProvider(cache, Distribution.default_source_manifest_providers if allow_lazy_load else None)]):
+        [CachedSourceManifestProvider(cache, Distribution.default_source_manifest_providers if allow_lazy_load else None)])
     assert cache.distribution_file.name == dist_name
     return dist
 
