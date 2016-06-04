@@ -34,6 +34,7 @@
 from .manifest_provider.bitbucket import bitbucket_manifest_provider
 from .manifest_provider.git import git_manifest_provider, git_source_manifest_provider
 from .manifest_provider.github import github_manifest_provider, github_source_manifest_provider
+from .package import Package
 
 
 class Distribution(object):
@@ -41,13 +42,12 @@ class Distribution(object):
     default_manifest_providers = [github_manifest_provider, bitbucket_manifest_provider, git_manifest_provider]
     default_source_manifest_providers = [github_source_manifest_provider, git_source_manifest_provider]
 
-    def __init__(self, distribution_file, manifest_providers=None, source_manifest_providers=None, source_packages={}):
+    def __init__(self, distribution_file, manifest_providers=None, source_manifest_providers=None):
         self._distribution_file = distribution_file
 
         # Use default
         self._manifest_providers = Distribution.default_manifest_providers
         self._source_manifest_providers = Distribution.default_source_manifest_providers
-        self._source_packages = source_packages
 
         # Override default if given
         if manifest_providers is not None:
@@ -84,11 +84,17 @@ class Distribution(object):
         repo_cache = self.get_source_repo_package_xmls(repo_name)
         return repo_cache[pkg_name][1]
 
-    def get_source_repo_package_xmls(self, repository_name):
-        if not self._source_repo_package_xmls.get(repository_name, None):
+    def get_source_repo_package_xmls(self, repo_name):
+        if not self._source_repo_package_xmls.get(repo_name, None):
             for mp in self._source_manifest_providers:
-                result = mp(self.repositories[repository_name].source_repository)
-                if result is not None:
+                repo_cache = mp(self.repositories[repo_name].source_repository)
+                if repo_cache is not None:
                     break
-            self._source_repo_package_xmls[repository_name] = result
-        return self._source_repo_package_xmls[repository_name]
+
+            # Update map of package XMLs, and also list of known package names.
+            self._source_repo_package_xmls[repo_name] = repo_cache
+            for pkg_name in repo_cache:
+                if pkg_name[0] != '_':
+                    self._distribution_file.source_packages[pkg_name] = Package(pkg_name, repo_name)
+
+        return self._source_repo_package_xmls[repo_name]
